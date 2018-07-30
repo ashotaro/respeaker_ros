@@ -73,10 +73,10 @@ PARAMETERS = {
 
 
 class RespeakerInterface(object):
-#    VENDOR_ID = 0x2886
-#    PRODUCT_ID = 0x0018 #ReSpeaker v2
     VENDOR_ID = 0x2886
-    PRODUCT_ID = 0x0007
+    PRODUCT_ID = 0x0018 #ReSpeaker v2
+#    VENDOR_ID = 0x2886
+#    PRODUCT_ID = 0x0007
     TIMEOUT = 100000
 
     def __init__(self):
