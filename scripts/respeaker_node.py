@@ -19,6 +19,7 @@ from audio_common_msgs.msg import AudioData
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool, Int32, ColorRGBA
 from dynamic_reconfigure.server import Server
+import pyudev
 
 try:
     from pixel_ring import usb_pixel_ring_v2
@@ -112,9 +113,22 @@ class RespeakerInterface(object):
     TIMEOUT = 100000
 
     def __init__(self):
-        self.BUS = rospy.get_param("~bus", 1 )
-        self.ADDRESS = rospy.get_param("~address", 1)
-        self.dev = usb.core.find(idVendor=self.VENDOR_ID,idProduct=self.PRODUCT_ID, bus=self.BUS, address=self.ADDRESS)
+        self.KERNEL = rospy.get_param("~kernel", "")
+
+        if self.KERNEL:
+            context = pyudev.Context()
+            udev_sys_path = "/sys/bus/usb/devices/" + self.KERNEL 
+            udev = pyudev.Device.from_path(context, udev_sys_path)
+            udev_bus = udev.get("BUSNUM")
+            udev_address = udev.get("DEVNUM")
+            rospy.loginfo(udev_sys_path)
+            rospy.loginfo(udev_bus)
+            rospy.loginfo(udev_address)
+            self.dev = usb.core.find(idVendor=self.VENDOR_ID,idProduct=self.PRODUCT_ID, bus=int(udev_bus), address=int(udev_address))
+        else:
+            self.dev = usb.core.find(idVendor=self.VENDOR_ID,idProduct=self.PRODUCT_ID)
+
+
         if not self.dev:
             raise RuntimeError("Failed to find Respeaker device")
         rospy.loginfo("Initializing Respeaker device")

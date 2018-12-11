@@ -1,12 +1,11 @@
 <launch>
 	<!-- Check USB Device Address -->
-	<arg name="right"	default="107"/>
-	<arg name="left"	default="108"/>	
+	<arg name="right"	default="1-2"/>
+	<arg name="left"	default="1-8"/>	
 
 	<node name="right_respeaker" pkg="respeaker_ros" type="respeaker_node.py" output="screen">
 		<param name="mic_name" value="right" />
-		<param name="bus" value="1" />
-		<param name="address" value="$(arg right)" />
+		<param name="kernel" value="$(arg right)" />
 		<!-- Check ALSA Device Number -->
 		<param name="hw_num" value="1" />
 	</node>
@@ -16,8 +15,7 @@
 
 	<node name="left_respeaker" pkg="respeaker_ros" type="respeaker_node.py" output="screen">
 		<param name="mic_name" value="left" />
-		<param name="bus" value="1" />
-		<param name="address" value="$(arg left)" />
+		<param name="kernel" value="$(arg left)" />
 		<!-- Check ALSA Device Number -->
 		<param name="hw_num" value="2" />
 	</node>
