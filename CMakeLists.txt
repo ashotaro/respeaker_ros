@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(respeaker_ros)
 
-find_package(catkin REQUIRED COMPONENTS dynamic_reconfigure)
+find_package(catkin REQUIRED COMPONENTS 
+  dynamic_reconfigure
+  tf2
+  tf2_ros
+  rospy
+  )
 
 generate_dynamic_reconfigure_options(
   cfg/Respeaker.cfg

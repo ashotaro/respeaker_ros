@@ -3,28 +3,62 @@
 # Author: furushchev <furushchev@jsk.imi.i.u-tokyo.ac.jp>
 
 import angles
+from contextlib import contextmanager
 import usb.core
 import usb.util
-from pixel_ring import usb_pixel_ring_v2
 import pyaudio
 import math
 import numpy as np
 import tf.transformations as T
+import os
 import rospy
 import struct
+import sys
 import time
 from audio_common_msgs.msg import AudioData
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool, Int32, ColorRGBA
 from dynamic_reconfigure.server import Server
+
+try:
+    from pixel_ring import usb_pixel_ring_v2
+except IOError as e:
+    print e
+    raise RuntimeError("Check the device is connected and recognized")
+
 try:
     from respeaker_ros.cfg import RespeakerConfig
 except Exception as e:
     print e
-    print "Need to run respeaker_gencfg.py first"
+    raise RuntimeError("Need to run respeaker_gencfg.py first")
+
+
+
+# suppress error messages from ALSA
+# https://stackoverflow.com/questions/7088672/pyaudio-working-but-spits-out-error-messages-each-time
+# https://stackoverflow.com/questions/36956083/how-can-the-terminal-output-of-executables-run-by-python-functions-be-silenced-i
+@contextmanager
+def ignore_stderr(enable=True):
+    if enable:
+        devnull = None
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            stderr = os.dup(2)
+            sys.stderr.flush()
+            os.dup2(devnull, 2)
+            try:
+                yield
+            finally:
+                os.dup2(stderr, 2)
+                os.close(stderr)
+        finally:
+            if devnull is not None:
+                os.close(devnull)
+    else:
+        yield
+
 
 # Partly copied from https://github.com/respeaker/usb_4_mic_array
-
 # parameter list
 # name: (id, offset, type, max, min , r/w, info)
 PARAMETERS = {
@@ -73,15 +107,14 @@ PARAMETERS = {
 
 
 class RespeakerInterface(object):
-#    VENDOR_ID = 0x2886
-#    PRODUCT_ID = 0x0018 #ReSpeaker v2
     VENDOR_ID = 0x2886
-    PRODUCT_ID = 0x0007
+    PRODUCT_ID = 0x0018
     TIMEOUT = 100000
 
     def __init__(self):
-        self.dev = usb.core.find(idVendor=self.VENDOR_ID,
-                                 idProduct=self.PRODUCT_ID)
+        self.BUS = rospy.get_param("~bus", 1 )
+        self.ADDRESS = rospy.get_param("~address", 1)
+        self.dev = usb.core.find(idVendor=self.VENDOR_ID,idProduct=self.PRODUCT_ID, bus=self.BUS, address=self.ADDRESS)
         if not self.dev:
             raise RuntimeError("Failed to find Respeaker device")
         rospy.loginfo("Initializing Respeaker device")
@@ -186,27 +219,30 @@ class RespeakerInterface(object):
 class RespeakerAudio(object):
     def __init__(self, on_audio, channel=0):
         self.on_audio = on_audio
-        self.pyaudio = pyaudio.PyAudio()
+        with ignore_stderr(True):
+            self.pyaudio = pyaudio.PyAudio()
         self.channels = None
         self.channel = channel
         self.device_index = None
         self.rate = 16000
         self.bitwidth = 2
         self.bitdepth = 16
-
+        self.num = rospy.get_param("~hw_num", 1)
         # find device
         count = self.pyaudio.get_device_count()
         rospy.logdebug("%d audio devices found" % count)
+        rospy.loginfo("%d audio devices found" % count)
         for i in range(count):
             info = self.pyaudio.get_device_info_by_index(i)
             name = info["name"].encode("utf-8")
             chan = info["maxInputChannels"]
             rospy.logdebug(" - %d: %s" % (i, name))
-            if name.lower().find("respeaker") >= 0:
+            if name.find("(hw:%d,0)" %self.num) >= 0:
                 self.channels = chan
                 self.device_index = i
                 rospy.loginfo("Found %d: %s (channels: %d)" % (i, name, chan))
                 break
+
         if self.device_index is None:
             rospy.logwarn("Failed to find respeaker device by name. Using default input")
             info = self.pyaudio.get_default_input_device_info()
@@ -217,6 +253,7 @@ class RespeakerAudio(object):
             rospy.logwarn("%d channel is found for respeaker" % self.channels)
             rospy.logwarn("You may have to update firmware.")
         self.channel = min(self.channels - 1, max(0, self.channel))
+
 
         self.stream = self.pyaudio.open(
             input=True, start=False,
@@ -259,7 +296,6 @@ class RespeakerAudio(object):
         if self.stream.is_active():
             self.stream.stop_stream()
 
-
 class RespeakerNode(object):
     def __init__(self):
         rospy.on_shutdown(self.on_shutdown)
@@ -271,6 +307,7 @@ class RespeakerNode(object):
         self.speech_continuation = rospy.get_param("~speech_continuation", 0.5)
         self.speech_max_duration = rospy.get_param("~speech_max_duration", 7.0)
         self.speech_min_duration = rospy.get_param("~speech_min_duration", 0.1)
+        mic_name = rospy.get_param("~mic_name", "mic_name")
         #
         self.respeaker = RespeakerInterface()
         self.speech_audio_buffer = str()
@@ -279,11 +316,10 @@ class RespeakerNode(object):
         self.prev_is_voice = None
         self.prev_doa = None
         # advertise
-        self.pub_vad = rospy.Publisher("is_speeching", Bool, queue_size=1, latch=True)
-        self.pub_doa_raw = rospy.Publisher("sound_direction", Int32, queue_size=1, latch=True)
-        self.pub_doa = rospy.Publisher("sound_localization", PoseStamped, queue_size=1, latch=True)
-        self.pub_audio = rospy.Publisher("audio", AudioData, queue_size=10)
-        self.pub_speech_audio = rospy.Publisher("speech_audio", AudioData, queue_size=10)
+        self.pub_vad = rospy.Publisher(mic_name + "_is_speeching", Bool, queue_size=1, latch=True)
+        self.pub_doa_raw = rospy.Publisher(mic_name + "_sound_direction", Int32, queue_size=1, latch=True)
+        self.pub_audio = rospy.Publisher(mic_name + "_audio", AudioData, queue_size=10)
+        self.pub_speech_audio = rospy.Publisher(mic_name + "_speech_audio", AudioData, queue_size=10)
         # init config
         self.config = None
         self.dyn_srv = Server(RespeakerConfig, self.on_config)
@@ -361,18 +397,6 @@ class RespeakerNode(object):
         if doa != self.prev_doa:
             self.pub_doa_raw.publish(Int32(data=doa))
             self.prev_doa = doa
-
-            msg = PoseStamped()
-            msg.header.frame_id = self.sensor_frame_id
-            msg.header.stamp = stamp
-            ori = T.quaternion_from_euler(math.radians(doa), 0, 0)
-            msg.pose.position.x = self.doa_xy_offset * np.cos(doa_rad)
-            msg.pose.position.y = self.doa_xy_offset * np.sin(doa_rad)
-            msg.pose.orientation.w = ori[0]
-            msg.pose.orientation.x = ori[1]
-            msg.pose.orientation.y = ori[2]
-            msg.pose.orientation.z = ori[3]
-            self.pub_doa.publish(msg)
 
         # speech audio
         if is_voice:
