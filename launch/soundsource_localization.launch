@@ -3,7 +3,7 @@
 	<arg name="right"	default="1-2"/>
 	<arg name="left"	default="1-8"/>	
 
-	<node name="right_respeaker" pkg="respeaker_ros" type="respeaker_node.py" output="screen">
+	<node name="right_respeaker" pkg="respeaker_ros" type="respeaker_node.py">
 		<param name="mic_name" value="right" />
 		<param name="kernel" value="$(arg right)" />
 		<!-- Check ALSA Device Number -->
@@ -11,9 +11,9 @@
 	</node>
 
 	<node name="right_mic_tf" pkg="tf" type="static_transform_publisher"
-		args="0 0.10 0 0 0 0 base_link right_mic_link 100" />
+		args="0 -0.2 0 0 0 0 base_link right_mic_link 100" />
 
-	<node name="left_respeaker" pkg="respeaker_ros" type="respeaker_node.py" output="screen">
+	<node name="left_respeaker" pkg="respeaker_ros" type="respeaker_node.py">
 		<param name="mic_name" value="left" />
 		<param name="kernel" value="$(arg left)" />
 		<!-- Check ALSA Device Number -->
@@ -21,9 +21,9 @@
 	</node>
 
 	<node name="left_mic_tf" pkg="tf" type="static_transform_publisher"
-		args="0 -0.10 0 0 0 0 base_link left_mic_link 100" />
+		args="0 0.2 0 0 0 0 base_link left_mic_link 100" />
 
 	<node name="soundsource_localization" pkg="respeaker_ros"
-		type="soundsource_detection.py" />
+		type="soundsource_detection.py" output="screen"/>
 
 </launch>

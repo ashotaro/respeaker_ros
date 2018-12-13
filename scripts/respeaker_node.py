@@ -9,14 +9,12 @@ import usb.util
 import pyaudio
 import math
 import numpy as np
-import tf.transformations as T
 import os
 import rospy
 import struct
 import sys
 import time
 from audio_common_msgs.msg import AudioData
-from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool, Int32, ColorRGBA
 from dynamic_reconfigure.server import Server
 import pyudev
