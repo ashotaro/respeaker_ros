@@ -38,15 +38,18 @@ def soundsourceLocalization(right, left):
 # This geometric computation is not availble when both thetas are 90 deg      
     if not (left_euler - right_euler) % math.pi == 0 \
     and not (left_euler - math.pi/2) % math.pi == 0 \
-    and not (right_euler - math.pi/2) % math.pi == 0 \
-    and not 5*math.sin(left_euler - right_euler) - l*math.sin(right_euler) >= 0 \
-    and not 5*math.sin(left_euler - right_euler) - l*math.sin(left_euler) >= 0 :
-        d = ((math.sin(right_euler)*math.sin(left_euler))/((-1)*math.sin(left_euler-right_euler)))*l
-        lx_from_left = d/math.tan(left_euler)
+    and not (right_euler - math.pi/2) % math.pi == 0 :
+        if not 5*math.sin(left_euler - right_euler) - l*math.sin(right_euler) >= 0 \
+        and not 5*math.sin(left_euler - right_euler) - l*math.sin(left_euler) >= 0 :
+            d = ((math.sin(right_euler)*math.sin(left_euler))/((-1)*math.sin(left_euler-right_euler)))*l
+            lx_from_left = d/math.tan(left_euler)
+        else:
+            check_right = 5*math.sin(left_euler - right_euler) - l*math.sin(left_euler)
+            check_left = 5*math.sin(left_euler - right_euler) - l*math.sin(right_euler)
+            rospy.logwarn("Over the Range of Microphones can decect %f %f " %(check_right, check_left ))
+            return
     else:
-        check_right = 5*math.sin(left_euler - right_euler) - l*math.sin(left_euler)
-        check_left = 5*math.sin(left_euler - right_euler) - l*math.sin(right_euler)
-        rospy.logwarn("cannot detect. Deg : (%f , %f) Range : (%f , %f) > 0" %(math.radians(right_euler), math.radians(left_euler), check_right, check_left))
+        rospy.logwarn("(%f , %f)" %(math.degrees(right_euler), math.degrees(left_euler)))
         return
 
 # Need error correspondence

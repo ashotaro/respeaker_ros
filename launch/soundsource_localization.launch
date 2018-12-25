@@ -1,7 +1,7 @@
 <launch>
 	<!-- Check USB Device Address -->
-	<arg name="right"	default="1-2"/>
-	<arg name="left"	default="1-8"/>	
+	<arg name="right"	default="1-8.4"/>
+	<arg name="left"	default="1-8.3"/>	
 
 	<node name="right_respeaker" pkg="respeaker_ros" type="respeaker_node.py">
 		<param name="mic_name" value="right" />
